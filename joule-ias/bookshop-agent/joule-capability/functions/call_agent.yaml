@@ -1,0 +1,43 @@
+parameters:
+  - name: contextId
+    optional: true
+  - name: taskId
+    optional: true
+  - name: taskState
+    optional: true
+
+action_groups:
+  - actions:
+      - type: status-update
+        message: <? "Processing your request..." ?>
+
+      - type: agent-request
+        agent_type: remote
+        system_alias: OutboundDeliveryAgent
+        body: >
+          <? (contextId == null || contextId.isEmpty())
+             ? null
+             : (taskId != null && !taskId.isEmpty() && (taskState == 'TASK_STATE_INPUT_REQUIRED' || taskState == 'TASK_STATE_AUTH_REQUIRED'))
+               ? '{ "contextId": "' + contextId + '", "taskId": "' + taskId + '" }'
+               : '{ "contextId": "' + contextId + '" }' ?>
+        result_variable: result
+
+      - type: set-variables
+        variables:
+          - name: contextId
+            value: <? result.body.contextId ?>
+          - name: taskId
+            value: <? result.body.id ?>
+          - name: taskState
+            value: <? result.body?.status?.state ?>
+
+      - type: message
+        message:
+          type: text
+          content: "<? result.body.status.message.parts[0].text ?>"
+          markdown: true
+
+result:
+  contextId: "<? contextId ?>"
+  taskId: "<? taskId ?>"
+  taskState: "<? taskState ?>"

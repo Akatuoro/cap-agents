@@ -1,0 +1,5 @@
+schema_version: 1.4.0
+name: capagents4_a2a
+capabilities:
+  - type: local
+    folder: ./

@@ -1,0 +1,25 @@
+description: >
+  Use this to list, search, browse, or get information about books in the catalog.
+  Also use this when ordering a book for the user.
+  Call this when the user asks to show books, find a book, list all books,
+  or query book details. The user also has a profile which he should be able to access.
+  Examples: "list books", "show me all books", "find books by author", "show my profile".
+
+target:
+  type: function
+  name: call_agent
+  parameters:
+    - name: contextId
+      value: $capability_context.contextId
+    - name: taskId
+      value: $capability_context.taskId
+    - name: taskState
+      value: $capability_context.taskState
+
+capability_context:
+  - name: contextId
+    value: $target_result.contextId
+  - name: taskId
+    value: $target_result.taskId
+  - name: taskState
+    value: $target_result.taskState

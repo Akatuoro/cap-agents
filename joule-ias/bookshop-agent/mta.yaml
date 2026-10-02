@@ -1,0 +1,155 @@
+_schema-version: 3.3.0
+ID: bookshop-agent
+version: 1.0.0
+description: "A simple CAP project."
+parameters:
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+modules:
+  - name: bookshop-agent-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+      routes:
+        - route: "${default-url}"
+        - route: "${default-host}.cert.${default-domain}"
+    build-parameters:
+      builder: npm-ci
+    provides:
+      - name: srv-api # required by consumers of CAP services (e.g. approuter)
+        properties:
+          srv-url: ${default-url}
+          srv-cert-url: '${protocol}://${default-host}.cert.${default-domain}'
+    requires:
+      - name: bookshop-agent-ias
+        parameters:
+          config:
+            credential-type: X509_GENERATED
+            app-identifier: srv
+      - name: bookshop-agent-db
+      - name: bookshop-agent-ai
+
+  - name: bookshop-agent-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: bookshop-agent-db
+
+  - name: bookshop-agent
+    type: approuter.nodejs
+    path: .deploy/app-router
+    requires:
+      - name: bookshop-agent-ias
+        parameters:
+          config:
+            credential-type: X509_GENERATED
+            app-identifier: approuter
+      - name: srv-api
+        group: destinations
+        properties:
+          url: ~{srv-cert-url}
+          forwardAuthCertificates: true
+          forwardAuthToken: true
+          strictSSL: true
+    parameters:
+      keep-existing-routes: true
+      disk-quota: 256M
+      memory: 256M
+    provides:
+      - name: app-api
+        properties:
+          app-protocol: ${protocol}
+          app-uri: ${default-uri}
+
+resources:
+  - name: bookshop-agent-ias
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: identity
+      service-name: bookshop-agent-ias
+      service-plan: application
+      config:
+        provided-apis:
+          - name: bookshop-agent-ias-api
+            description: API exposed by the application
+        allow-principal-propagation: true
+        display-name: bookshop-agent
+        oauth2-configuration:
+          token-policy:
+            access-token-format: "jwt"
+          redirect-uris:
+            - http://localhost:5000/login/callback?authType=ias
+            - ~{app-api/app-protocol}://*~{app-api/app-uri}/login/callback
+          post-logout-redirect-uris:
+            - ~{app-api/app-protocol}://*~{app-api/app-uri}/*/logout.html
+        xsuaa-cross-consumption: true
+    requires:
+      - name: app-api
+  - name: bookshop-agent-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: bookshop-agent-ai
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: aicore
+      service-plan: extended
+  - name: bookshop-agent-dest
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+      service-name: bookshop-agent-dest
+  - name: bookshop-agent-proxy-ias
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: identity
+      service-plan: application
+      service-name: bookshop-agent-proxy-ias
+      config:
+        display-name: bookshop-agent-proxy
+        oauth2-configuration:
+          token-policy:
+            access-token-format: jwt
+          grant-types:
+            - urn:ietf:params:oauth:grant-type:jwt-bearer
+        provided-apis:
+          - name: bookshop-agent-proxy
+            description: bookshop-agent-proxy
+        consumed-apis:
+          - name: proxy-to-bookshop-agent
+            description: Dependency to bookshop-agent
+            service-instance-name: bookshop-agent-ias
+
+  # Sender IAS app — mocks das-ias (Joule's IAS app).
+  # Has the "joule-to-proxy" dependency pointing at the proxy app, exactly as
+  # das-ias has in production. password grant enabled for test token acquisition.
+  - name: bookshop-agent-sender-ias
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: identity
+      service-plan: application
+      service-name: bookshop-agent-sender-ias
+      config:
+        display-name: das-ias-mock
+        oauth2-configuration:
+          token-policy:
+            access-token-format: jwt
+          grant-types:
+            - urn:ietf:params:oauth:grant-type:jwt-bearer
+            - password
+        consumed-apis:
+          - name: joule-to-proxy
+            description: Dependency to bookshop-agent-proxy (mirrors das-ias production config)
+            service-instance-name: bookshop-agent-proxy-ias
+            api-name: bookshop-agent-proxy

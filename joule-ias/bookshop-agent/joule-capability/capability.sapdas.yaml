@@ -1,0 +1,12 @@
+schema_version: 3.28.0
+
+metadata:
+  namespace: joule.ext
+  name: capagents4_a2a
+  version: 1.0.0
+  display_name: "Catalog Agent"
+  description: Books.
+
+system_aliases:
+  OutboundDeliveryAgent:
+    destination: JOULE_APP_2_APP

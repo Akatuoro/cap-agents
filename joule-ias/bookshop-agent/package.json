@@ -1,0 +1,33 @@
+{
+  "name": "bookshop-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@cap-js/agents": "^0.9.7",
+    "@cap-js/hana": "^3",
+    "@sap/cds": "^10",
+    "@sap/xssec": "^4"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^3",
+    "@sap/cds-dk": "^10"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "create-destination": "TARGET_API_URL=$(node scripts/get-srv-url.mjs /a2a/catalog) cds bind --exec -- node scripts/create-destination.mjs",
+    "create-destination:mtls": "TARGET_API_URL=$(node scripts/get-srv-url.mjs --cert /a2a/catalog) cds bind --exec -- node scripts/create-destination-mtls.mjs",
+    "test:auth": "TARGET_APP_URL=$(node scripts/get-srv-url.mjs /a2a/catalog) cds bind --exec -- node scripts/test-auth.mjs",
+    "test:auth:mtls": "TARGET_APP_URL=$(node scripts/get-srv-url.mjs --cert /a2a/catalog) cds bind --exec -- node scripts/test-auth-mtls.mjs"
+  },
+  "private": true,
+  "cds": {
+    "server": {
+      "index": true
+    },
+    "requires": {
+      "[production]": {
+        "auth": "ias"
+      }
+    }
+  }
+}
